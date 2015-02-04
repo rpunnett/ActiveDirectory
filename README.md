@@ -34,7 +34,7 @@ ActiveDirectory has the following requirements:
 
 
 * [PHP] - Version 5.*
-
+* [PHP LDAP Extension]
 
 Normal Installation
 --------------
@@ -56,3 +56,4 @@ MIT
 
 [robert punnett]:https://github.com/rpunnett
 [PHP]:http://php.net/
+[PHP LDAP Extension]:http://php.net/manual/en/book.ldap.php
