@@ -1,7 +1,9 @@
 ActiveDirectory
 =========
 
-A php class to query and verify users in Active Directory
+A php class to query and verify users in Active Directory.
+
+Will search on multiple domains suplied on the _forests array.
 
 Usage
 ----
