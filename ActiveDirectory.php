@@ -1,38 +1,41 @@
-<?php
-
+<?php 
   /**
  * @class name: ActiveDirectory
  *
- * @Version: 3.0.2
+ * @Version: 3.1.0
  * 
- * @description: Access the Active Directory Servers
+ * @description: Access Active Directory Servers using LDAP.
  * 
- *  Offers two static functions:
- *      * getDetails: Queries a person or pc
+ *  Offers three static functions:
+ *      * getUserDetails: Queries a person
+ *      * getDeviceDetails: Queries a PC
  *      * verify: checks a users credentials
  *
- *  Example: ActiveDirectory::verify('<USERNAME>','<PASSWORD>');
+ *  Example: ActiveDirectory::verify('USERNAME','PASSWORD');
  *      Returns: True or False
  * 
- *  Example: ActiveDirectory::getDetails('<USERNAME>','user');
+ *  Example: ActiveDirectory::getUserDetails('USERNAME','user');
  *      Returns: A user object of LDAP info or False
  * 
- * @author Robert Punnett
+ * @author Robert Punnett 
  * @date 02-03-2015
  */
+ 
+ Use StdClass;
  
 class ActiveDirectory {
     
     private $_bind = false;//Stores LDAP bind
     private $_cnx = false; //Stores LDAP Connection object
+    private $_result = false; //Stores results Depreciate?
     
     private $_userSearchField = "SamAccountName";   //In what Active Directory field do you want to search for the string
     private $_cnSearchField = "Name";   //In what Active Directory field do you want to search for the string
-	private $_LDAPHost = 'example.ad.example.com';       //Your LDAP server DNS Name or IP Address
-	private $_dn = 'DC=example,DC=AD,DC=example,DC=COM'; //Put your Base DN here
-	private $_LDAPUserDomain = "@example";  //Needs the @, but not always the same as the LDAP server domain
-    private $_adminUser = 'theUser'; //Base account RACF to do LDAP queries
-    private $_adminPassword = 'thePassword'; //Base account password to do LDAP queries
+    private $_LDAPHost = 'example.ad.example.com';       //Your LDAP server DNS Name or IP Address
+    private $_dn = 'DC=example,DC=AD,DC=example,DC=COM'; //Put your Base DN here
+    private $_LDAPUserDomain = "@example";  //Needs the @, but not always the same as the LDAP server domain
+    private $_adminUser = 'adminUser'; //Base account username to do LDAP queries
+    private $_adminPassword = 'adminPassword'; //Base account password to do LDAP queries
     
     private $_userFields = array( //Array of fields to retrieve from user
         "SamAccountName",
@@ -62,17 +65,17 @@ class ActiveDirectory {
     
     private $_cnFields = array(  //Array of fields to retrieve from a pc
         "CN",
-    	"createtimestamp",
-    	"DistinguishedName",
-    	"lastlogontimestamp",
-    	"modifytimestamp",
-    	"OperatingSystem",
-    	"whenChanged",
-    	"CanonicalName",
+        "createtimestamp",
+        "DistinguishedName",
+        "lastlogontimestamp",
+        "modifytimestamp",
+        "OperatingSystem",
+        "whenChanged",
+        "CanonicalName",
     );
     
     private $_forests = array(  //List of LDAP forests
-    	"example.ad.example.com" => "DC=example,DC=AD,DC=example,DC=COM",
+        "example.ad.example.com" => "DC=example,DC=AD,DC=example,DC=COM"
     );
 
         
@@ -82,15 +85,15 @@ class ActiveDirectory {
     }   
 
     /**
-	 * Setup the connection and bind
-	 *
+     * Setup the connection and bind
+     *
      *  @param string $host  The ldap hostname
      *  @param string $user  A user's username
      *  @param string $password  A user's password
      * 
-	 * @return bool
-	 */    
-    private function connect ($host = 'example.ad.example.com' , $user = 'theUser', $password = 'thePassword') {
+     * @return bool
+     */    
+    private function connect ($host = 'example.ad.example.com' , $user = 'adminUser', $password = 'adminPassword') {
         
         $this->_cnx = ldap_connect($host) 
             or die("Could not connect to {$host}");
@@ -120,12 +123,12 @@ class ActiveDirectory {
     
    /**
      * Checks if a passed U/P binds against AD
-	 *
+     *
      *  @param string $user  A user's username
      *  @param string $password  A user's password
      * 
-	 * @return bool
-	 */ 
+     * @return bool
+     */ 
     static function verify($user, $password) {
     
         $AD = new ActiveDirectory();
@@ -145,20 +148,25 @@ class ActiveDirectory {
         
      
     /**
-    * Gets the details of a pc or user
+    * Gets the details of a  user
     *
-    *  @param string $value  What is being search for (Person or PC)
-    *  @param string $type  Determines what is being searched -> Options are 'user' or 'cn'
+    *  @param string $value  The term being searched
+    *  @param string $searchField What field do you want to filter on
+    *  @param string $dataFields  What fields do you want returned
     * 
     * @return object, or false
     */ 
-    public static function getDetails($value,$type = 'user'){
+    public static function getUserDetails($value, $searchField = false, $dataFields = false){
     
+   
         //Create new object instance
         $AD = new ActiveDirectory();     
-        
+
+        $searchField = $searchField ?: $AD->_userSearchField;
+        $dataFields = $dataFields ?: $AD->_userFields;
+
         //get the return object
-        $return = $AD->search($value,$type);
+        $return = $AD->search($value,$searchField,$dataFields);
         
         //If there is a result...
         if($return)
@@ -172,72 +180,84 @@ class ActiveDirectory {
     
     }//end of search function
     
+
+    /**
+    * Gets the details of a pc 
+    *
+    *  @param string $value  The term being searched
+    *  @param string $searchField What field do you want to filter on
+    *  @param string $dataFields  What fields do you want returned
+    *
+    * @return object, or false
+    */ 
+    public static function getDeviceDetails($value,$searchField = false, $dataFields = false){
     
+        //Create new object instance
+        $AD = new ActiveDirectory();  
+
+        $searchField = $searchField ?: $AD->_cnSearchField;
+        $dataFields = $dataFields ?: $AD->_cnFields;
+
+
+        //get the return object
+        $return = $AD->search($value,$searchField,$dataFields);
+                
+        //If there is a result...
+        if($return)
+        {
+            //Clean up the results and return it
+            return  $AD->ldapArraytoObject($return);
+        }
+        
+        //else if no results found, do something elese..
+        return false;
+    
+    }//end of search function
+
+
+
      /**
      * Searches LDAP, if found, returns an object of the search fields
      * if not found, returns false
-	 *
+     *
      *  @param string $value  What is being search for (Person or PC)
      *  @param string $type  Determines what is being searched -> Options are 'user' or 'cn'
      *  @param array $searchField  The fields to search for IE -> mail, photo, samaccountname...
      * 
-	 * @return object
-	 */   
-    private function search($value,$type = 'user', $searchField = null) {
+     * @return object
+     */   
+    private function search($value,$searchField,$dataFields) {
         
         $count = count($this->_forests);
         $loops = 0;
         
         foreach($this->_forests as $LDAPHost => $dn)
         {
-            //Log::info($LDAPHost);
+           
             $this->connect($LDAPHost);
 
-  
-            if($type == 'user')
-            {   
-                //Set type specific info
-                //The field to search in
-                $field = $this->_userSearchField;
-                //The fields to search for
-                $searchField = $searchField?: $this->_userFields;
-                 
-                $filter="($field=$value*)"; 
-                $sr=ldap_search($this->_cnx, $dn, $filter,  $searchField); 
-            }
-            else if($type == 'cn')
-            {
-                //Set type specific info
-                //The field to search in
-                $field = $this->_cnSearchField ;
-                //The fields to search for
-                $searchField = $searchField?: $this->_cnFields;
-                
-                $filter="($field=$value*)"; 
-                $sr=ldap_search($this->_cnx, $this->_dn, $filter, $searchField ); 
-            }
+            $filter="($searchField=$value*)";
+
+            $sr=ldap_search($this->_cnx, $dn, $filter,  $dataFields); 
+       
+            //Perform the search
+            $info = ldap_get_entries($this->_cnx, $sr);
             
-                //Perform the search
-                $info = ldap_get_entries($this->_cnx, $sr);
-                
-                if($info['count'] === 0)
-                {
-                    //If no results -> keep going
-                    $loops++;
-                }
-                else if($info['count'] === 1)
-                {
-                    //Else stop searching and get a real job
-                    break;
-                }
+            if($info['count'] === 1)
+            {
+                break;
+            }
+
+            $loops++;
+       
 
         }
  
-            //If all DN's have been checked, just give up
-            if($loops === $count)
-            {   
-                return false;
-            }
+        //If all DN's have been checked, just give up
+        if($loops === $count)
+        {   
+            return false;
+        }
     
         //If a result was found, go ahead and return it, you earned it
         return $info;
@@ -283,19 +303,19 @@ class ActiveDirectory {
                         //If item is a photo, convert to base64
                         if(preg_match("/(photo)/", $key, $matches))
                         {
-            			    $item[$key][0] = base64_encode($item[$key][0]);
+                            $item[$key][0] = base64_encode($item[$key][0]);
                         }
                         
                         //Makes the account status human readble
                         if(preg_match("/(useraccountcontrol)/", $key, $matches))
                         {     
-                		    $item[$key][0] =   $this->getAccountStatus($item[$key][0]);
+                            $item[$key][0] =   $this->getAccountStatus($item[$key][0]);
                         }
                         
                         //Cleans email by removing exchange
                         if(preg_match("/(mail)/", $key, $matches))
                         {
-                            $item[$key][0] = (explode("@", $item[$key][0])[0]). '@nscorp.com';
+                            $item[$key][0] = (explode("@", $item[$key][0])[0]). '@example.com';
                         }               
                         
                         //Send it to the new object
